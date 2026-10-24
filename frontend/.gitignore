@@ -1,0 +1,27 @@
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Node.js
+**/node_modules/
+**/dist/
+
+# Java / Maven
+**/target/
+
+# IDE files
+.vscode/
+.idea/
+
+# Logs and temporary files
+*.log
+startup-error.txt
+backend/startup-error.txt
+
+# Operating system files
+.DS_Store
+Thumbs.db

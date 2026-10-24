@@ -1,0 +1,4 @@
+const BASE=(import.meta.env.VITE_API_URL||'http://localhost:8080/api').replace(/\/$/,'');
+export function getToken(){return localStorage.getItem('velora_token')||''}
+export async function api(path,options={}){const headers={'Content-Type':'application/json',...(options.headers||{})};if(getToken())headers.Authorization=`Bearer ${getToken()}`;let res;try{res=await fetch(`${BASE}${path}`,{...options,headers})}catch(e){throw new Error('Cannot connect to VELORA API. Check backend is running and VITE_API_URL is correct.')};const text=await res.text();let data=null;try{data=text?JSON.parse(text):null}catch{data=text};if(!res.ok)throw new Error(data?.message||data?.error||`Request failed (${res.status})`);return data}
+export const money=paise=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format((Number(paise)||0)/100);
