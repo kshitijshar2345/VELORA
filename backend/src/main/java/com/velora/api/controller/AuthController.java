@@ -1,9 +1,61 @@
 package com.velora.api.controller;
-import com.velora.api.dto.*; import com.velora.api.entity.*; import com.velora.api.repository.UserRepository; import com.velora.api.security.JwtService; import jakarta.validation.Valid; import org.springframework.http.*; import org.springframework.security.authentication.*; import org.springframework.security.crypto.password.PasswordEncoder; import org.springframework.web.bind.annotation.*;
-@RestController @RequestMapping("/api/auth") public class AuthController {
- private final UserRepository users; private final PasswordEncoder encoder; private final AuthenticationManager auth; private final JwtService jwt;
- public AuthController(UserRepository u,PasswordEncoder e,AuthenticationManager a,JwtService j){users=u;encoder=e;auth=a;jwt=j;}
- @PostMapping("/register") public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest r){String email=r.email().trim().toLowerCase(); if(users.findByEmail(email).isPresent())return ResponseEntity.status(409).body(java.util.Map.of("message","Email already registered")); User u=new User();u.setName(r.name().trim());u.setEmail(email);u.setPasswordHash(encoder.encode(r.password()));u.setRole(Role.CUSTOMER);users.save(u);return ResponseEntity.status(201).body(response(u));}
- @PostMapping("/login") public ResponseEntity<?> login(@Valid @RequestBody AuthRequest r){try{String email=r.email().trim().toLowerCase();auth.authenticate(new UsernamePasswordAuthenticationToken(email,r.password()));return ResponseEntity.ok(response(users.findByEmail(email).orElseThrow()));}catch(Exception e){return ResponseEntity.status(401).body(java.util.Map.of("message","Invalid email or password"));}}
- private AuthResponse response(User u){return new AuthResponse(jwt.generate(u),new AuthResponse.UserView(u.getId(),u.getName(),u.getEmail(),u.getRole().name()));}
+
+import com.velora.api.dto.*;
+import com.velora.api.entity.*;
+import com.velora.api.repository.UserRepository;
+import com.velora.api.security.JwtService;
+import jakarta.validation.Valid;
+import org.springframework.http.*;
+import org.springframework.security.authentication.*;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+  private final UserRepository users;
+  private final PasswordEncoder encoder;
+  private final AuthenticationManager auth;
+  private final JwtService jwt;
+
+  public AuthController(
+      UserRepository u, PasswordEncoder e, AuthenticationManager a, JwtService j) {
+    users = u;
+    encoder = e;
+    auth = a;
+    jwt = j;
+  }
+
+  @PostMapping("/register")
+  public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest r) {
+    String email = r.email().trim().toLowerCase();
+    if (users.findByEmail(email).isPresent())
+      return ResponseEntity.status(409)
+          .body(java.util.Map.of("message", "Email already registered"));
+    User u = new User();
+    u.setName(r.name().trim());
+    u.setEmail(email);
+    u.setPasswordHash(encoder.encode(r.password()));
+    u.setRole(Role.CUSTOMER);
+    users.save(u);
+    return ResponseEntity.status(201).body(response(u));
+  }
+
+  @PostMapping("/login")
+  public ResponseEntity<?> login(@Valid @RequestBody AuthRequest r) {
+    try {
+      String email = r.email().trim().toLowerCase();
+      auth.authenticate(new UsernamePasswordAuthenticationToken(email, r.password()));
+      return ResponseEntity.ok(response(users.findByEmail(email).orElseThrow()));
+    } catch (Exception e) {
+      return ResponseEntity.status(401)
+          .body(java.util.Map.of("message", "Invalid email or password"));
+    }
+  }
+
+  private AuthResponse response(User u) {
+    return new AuthResponse(
+        jwt.generate(u),
+        new AuthResponse.UserView(u.getId(), u.getName(), u.getEmail(), u.getRole().name()));
+  }
 }

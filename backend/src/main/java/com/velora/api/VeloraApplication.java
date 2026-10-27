@@ -1,5 +1,12 @@
 package com.velora.api;
+
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+
 @SpringBootApplication
-public class VeloraApplication { public static void main(String[] args) { SpringApplication.run(VeloraApplication.class, args); } }
+public class VeloraApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(VeloraApplication.class, args);
+    }
+}

@@ -1,9 +1,104 @@
 package com.velora.api.controller;
-import com.velora.api.entity.CustomerOrder;import com.velora.api.repository.OrderRepository;import com.velora.api.repository.UserRepository;import com.velora.api.entity.User;import com.razorpay.*;import org.json.JSONObject;import org.springframework.beans.factory.annotation.Value;import org.springframework.security.core.Authentication;import org.springframework.web.bind.annotation.*;import javax.crypto.Mac;import javax.crypto.spec.SecretKeySpec;import java.nio.charset.StandardCharsets;import java.security.MessageDigest;import java.util.*;
-@RestController @RequestMapping("/api/payments") public class PaymentController{
- @Value("${razorpay.key-id:}") String keyId;@Value("${razorpay.key-secret:}") String keySecret;private final OrderRepository orders;private final UserRepository users;public PaymentController(OrderRepository o,UserRepository u){orders=o;users=u;}
- @GetMapping("/key") public Map<String,String> key(){return Map.of("keyId",keyId==null?"":keyId);}
- @PostMapping("/create-order/{orderId}") public Map<String,Object> create(@PathVariable Long orderId,Authentication auth)throws Exception{if(keyId.isBlank()||keySecret.isBlank())throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,"Razorpay is not configured");CustomerOrder o=orders.findById(orderId).orElseThrow();User current=users.findByEmail(auth.getName()).orElseThrow();if(!o.getUserId().equals(current.getId()))throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN,"Not your order");if(!o.getStatus().equals("PENDING_PAYMENT")||o.getTotalPaise()<=0)throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST,"Order is not payable");RazorpayClient client=new RazorpayClient(keyId,keySecret);JSONObject options=new JSONObject();options.put("amount",o.getTotalPaise());options.put("currency","INR");options.put("receipt","velora_"+o.getId());JSONObject created=client.orders.create(options).toJson();String rid=created.getString("id");o.setRazorpayOrderId(rid);orders.save(o);return Map.of("razorpayOrderId",rid,"amount",o.getTotalPaise(),"currency","INR","keyId",keyId,"internalOrderId",o.getId());}
- public record VerifyRequest(Long orderId,String razorpayOrderId,String razorpayPaymentId,String razorpaySignature){}
- @PostMapping("/verify") public Map<String,Object> verify(@RequestBody VerifyRequest r,Authentication auth)throws Exception{CustomerOrder o=orders.findById(r.orderId()).orElseThrow();User current=users.findByEmail(auth.getName()).orElseThrow();if(!o.getUserId().equals(current.getId()))throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN,"Not your order");if(!Objects.equals(o.getRazorpayOrderId(),r.razorpayOrderId()))throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST,"Order mismatch");Mac mac=Mac.getInstance("HmacSHA256");mac.init(new SecretKeySpec(keySecret.getBytes(StandardCharsets.UTF_8),"HmacSHA256"));byte[] expected=mac.doFinal((r.razorpayOrderId()+"|"+r.razorpayPaymentId()).getBytes(StandardCharsets.UTF_8));byte[] actual=HexFormat.of().parseHex(r.razorpaySignature());if(!MessageDigest.isEqual(expected,actual))throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST,"Invalid payment signature");o.setPaymentId(r.razorpayPaymentId());o.setStatus("PROCESSING");orders.save(o);return Map.of("success",true,"orderId",o.getId());}
+
+import com.razorpay.*;
+import com.velora.api.entity.CustomerOrder;
+import com.velora.api.entity.User;
+import com.velora.api.repository.OrderRepository;
+import com.velora.api.repository.UserRepository;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.*;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import org.json.JSONObject;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/payments")
+public class PaymentController {
+  @Value("${razorpay.key-id:}")
+  String keyId;
+
+  @Value("${razorpay.key-secret:}")
+  String keySecret;
+
+  private final OrderRepository orders;
+  private final UserRepository users;
+
+  public PaymentController(OrderRepository o, UserRepository u) {
+    orders = o;
+    users = u;
+  }
+
+  @GetMapping("/key")
+  public Map<String, String> key() {
+    return Map.of("keyId", keyId == null ? "" : keyId);
+  }
+
+  @PostMapping("/create-order/{orderId}")
+  public Map<String, Object> create(@PathVariable Long orderId, Authentication auth)
+      throws Exception {
+    if (keyId.isBlank() || keySecret.isBlank())
+      throw new org.springframework.web.server.ResponseStatusException(
+          org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE, "Razorpay is not configured");
+    CustomerOrder o = orders.findById(orderId).orElseThrow();
+    User current = users.findByEmail(auth.getName()).orElseThrow();
+    if (!o.getUserId().equals(current.getId()))
+      throw new org.springframework.web.server.ResponseStatusException(
+          org.springframework.http.HttpStatus.FORBIDDEN, "Not your order");
+    if (!o.getStatus().equals("PENDING_PAYMENT") || o.getTotalPaise() <= 0)
+      throw new org.springframework.web.server.ResponseStatusException(
+          org.springframework.http.HttpStatus.BAD_REQUEST, "Order is not payable");
+    RazorpayClient client = new RazorpayClient(keyId, keySecret);
+    JSONObject options = new JSONObject();
+    options.put("amount", o.getTotalPaise());
+    options.put("currency", "INR");
+    options.put("receipt", "velora_" + o.getId());
+    JSONObject created = client.orders.create(options).toJson();
+    String rid = created.getString("id");
+    o.setRazorpayOrderId(rid);
+    orders.save(o);
+    return Map.of(
+        "razorpayOrderId",
+        rid,
+        "amount",
+        o.getTotalPaise(),
+        "currency",
+        "INR",
+        "keyId",
+        keyId,
+        "internalOrderId",
+        o.getId());
+  }
+
+  public record VerifyRequest(
+      Long orderId, String razorpayOrderId, String razorpayPaymentId, String razorpaySignature) {}
+
+  @PostMapping("/verify")
+  public Map<String, Object> verify(@RequestBody VerifyRequest r, Authentication auth)
+      throws Exception {
+    CustomerOrder o = orders.findById(r.orderId()).orElseThrow();
+    User current = users.findByEmail(auth.getName()).orElseThrow();
+    if (!o.getUserId().equals(current.getId()))
+      throw new org.springframework.web.server.ResponseStatusException(
+          org.springframework.http.HttpStatus.FORBIDDEN, "Not your order");
+    if (!Objects.equals(o.getRazorpayOrderId(), r.razorpayOrderId()))
+      throw new org.springframework.web.server.ResponseStatusException(
+          org.springframework.http.HttpStatus.BAD_REQUEST, "Order mismatch");
+    Mac mac = Mac.getInstance("HmacSHA256");
+    mac.init(new SecretKeySpec(keySecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+    byte[] expected =
+        mac.doFinal(
+            (r.razorpayOrderId() + "|" + r.razorpayPaymentId()).getBytes(StandardCharsets.UTF_8));
+    byte[] actual = HexFormat.of().parseHex(r.razorpaySignature());
+    if (!MessageDigest.isEqual(expected, actual))
+      throw new org.springframework.web.server.ResponseStatusException(
+          org.springframework.http.HttpStatus.BAD_REQUEST, "Invalid payment signature");
+    o.setPaymentId(r.razorpayPaymentId());
+    o.setStatus("PROCESSING");
+    orders.save(o);
+    return Map.of("success", true, "orderId", o.getId());
+  }
 }

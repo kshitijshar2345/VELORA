@@ -1,8 +1,63 @@
 package com.velora.api.controller;
-import com.velora.api.entity.Product; import com.velora.api.repository.ProductRepository; import jakarta.validation.Valid; import org.springframework.data.domain.*; import org.springframework.web.bind.annotation.*; import org.springframework.http.ResponseEntity; import java.util.*;
-@RestController @RequestMapping("/api/products") public class ProductController {
- private final ProductRepository repo; public ProductController(ProductRepository r){repo=r;}
- @GetMapping public Map<String,Object> list(@RequestParam(required=false) String q,@RequestParam(required=false) String category,@RequestParam(required=false) Boolean featured,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="24") int size){List<Product> all=repo.findByActiveTrueOrderByCreatedAtDesc(); if(q!=null&&!q.isBlank())all=all.stream().filter(p->(p.getName()+" "+p.getDescription()).toLowerCase().contains(q.toLowerCase())).toList();if(category!=null&&!category.isBlank())all=all.stream().filter(p->category.equalsIgnoreCase(p.getCategory())).toList();if(Boolean.TRUE.equals(featured))all=all.stream().filter(Product::isFeatured).toList();int from=Math.min(Math.max(page,0)*Math.min(Math.max(size,1),100),all.size());int to=Math.min(from+Math.min(Math.max(size,1),100),all.size());return Map.of("content",all.subList(from,to),"totalElements",all.size(),"page",page,"size",size);}
- @GetMapping("/{id}") public Product one(@PathVariable Long id){return repo.findById(id).filter(Product::isActive).orElseThrow(()->new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND));}
- @GetMapping("/slug/{slug}") public Product slug(@PathVariable String slug){return repo.findBySlug(slug).filter(Product::isActive).orElseThrow(()->new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND));}
+
+import com.velora.api.entity.Product;
+import com.velora.api.repository.ProductRepository;
+import java.util.*;
+import org.springframework.data.domain.*;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/products")
+public class ProductController {
+  private final ProductRepository repo;
+
+  public ProductController(ProductRepository r) {
+    repo = r;
+  }
+
+  @GetMapping
+  public Map<String, Object> list(
+      @RequestParam(required = false) String q,
+      @RequestParam(required = false) String category,
+      @RequestParam(required = false) Boolean featured,
+      @RequestParam(defaultValue = "0") int page,
+      @RequestParam(defaultValue = "24") int size) {
+    List<Product> all = repo.findByActiveTrueOrderByCreatedAtDesc();
+    if (q != null && !q.isBlank())
+      all =
+          all.stream()
+              .filter(
+                  p ->
+                      (p.getName() + " " + p.getDescription())
+                          .toLowerCase()
+                          .contains(q.toLowerCase()))
+              .toList();
+    if (category != null && !category.isBlank())
+      all = all.stream().filter(p -> category.equalsIgnoreCase(p.getCategory())).toList();
+    if (Boolean.TRUE.equals(featured)) all = all.stream().filter(Product::isFeatured).toList();
+    int from = Math.min(Math.max(page, 0) * Math.min(Math.max(size, 1), 100), all.size());
+    int to = Math.min(from + Math.min(Math.max(size, 1), 100), all.size());
+    return Map.of(
+        "content", all.subList(from, to), "totalElements", all.size(), "page", page, "size", size);
+  }
+
+  @GetMapping("/{id}")
+  public Product one(@PathVariable Long id) {
+    return repo.findById(id)
+        .filter(Product::isActive)
+        .orElseThrow(
+            () ->
+                new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.NOT_FOUND));
+  }
+
+  @GetMapping("/slug/{slug}")
+  public Product slug(@PathVariable String slug) {
+    return repo.findBySlug(slug)
+        .filter(Product::isActive)
+        .orElseThrow(
+            () ->
+                new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.NOT_FOUND));
+  }
 }
